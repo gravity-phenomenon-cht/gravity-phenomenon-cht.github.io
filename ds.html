@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>	
+	<head>
+		<title>Gravity phenomenon</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<script type="text/javascript" src="Libraries/three/build/three.js"></script>
+        <script type="text/javascript" src="Libraries/three/examples/js/controls/OrbitControls.js"></script>
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+        
+		<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<style>
+		  body{
+		/* set margin to 0 and overflow to hidden, 
+		to use the complete page */
+		      margin: 0;
+		      overflow: hidden;
+		  }
+          #gui { 
+              position: absolute; 
+              top: 2px; 
+              left: 2px; 
+            }
+            @media only screen and (max-width: 768px) {
+                #gui{
+                    width: 100%;
+                }
+            }
+		</style>
+	</head>
+	<body>
+		<!--Div which will hold the Output -->
+        
+        <div id="WebGL-output">
+        </div>
+        
+		<!--Javascript code that runs our Three.js examples -->
+		<script type="text/javascript">
+            
+            const HEIGHT=window.innerHeight
+            const WIDTH=window.innerWidth
+            
+            var g=0.001
+            var STOP_TIME=-1
+            time=0
+		    var scene = new THREE.Scene();
+            //window.addEventListener("wheel", onMouseWheel);
+            
+            
+            
+            //setting camera
+            var camera = new THREE.PerspectiveCamera(100, WIDTH / HEIGHT, 0.1, 100000);
+            camera.position.z = 200;
+            
+
+            var material =new THREE.MeshPhongMaterial({shininess:10, color: 0xffffff})
+            
+            
+            var gui = new dat.gui.GUI();
+            gui.domElement.id = 'gui';
+            
+            var objs=[]/*
+                 new Objects([0,0,0], [0,0,0], [100000, 30], "1", "star"),
+                 new Objects([100,0,0], [0,1,0], [100, 7], "2", "planet"),
+                 new Objects([-100,0,0], [0,0.65,0.4], [100, 10], "3", "planet")    
+                     ]   */
+            
+            //0;0;0;0;0;0;100000;30;#ffffff;Star;star---0;100;0;1;0;0;100;10;#418c00;Planet;planet---
+            var objs_copy=[]
+            
+            var start_button;
+            
+            var setting={
+                start:false,
+                G:0.001,
+                light_general:"#ff0000",
+                general_light:new THREE.AmbientLight(0x418c00),
+                ok: function(){
+                    g=this.G
+                    this.general_light.color=new THREE.Color(this.light_general); // soft white light
+                },
+                starter:function(){
+                    if(this.start){
+                        start_button.name("Start")
+                    }else{
+                        time+=1
+                        start_button.name("Stop")
+                        gui.close()
+                        
+                    }
+                    this.start=!this.start
+                },
+                reloader:function(){
+                    objs=objs_copy
+                }
+            }
+            
+            start_button=gui.add(setting, 'starter').name("Start")
+            //gui.add(setting, 'reloader').name("Reload")
+            
+            scene.add(setting.general_light);
+            
+            
+            class Objects{
+                constructor(coord, velocity,  params, name, objType){
+                    
+                    this.coord=coord
+                    this.coord_=coord
+                    this.velocity=velocity
+                    this.velocity_=velocity
+                    this.accel=[0,0,0];
+                    this.params=params
+                    this.name=name
+                    
+                    this.points=[]
+                    this.toTrace=false    
+                    var materialLine = new THREE.LineBasicMaterial({color: new THREE.Color(setting.general_light)});
+                    var geometryLine = new THREE.BufferGeometry().setFromPoints( this.points );
+                    this.line = new THREE.Line( geometryLine, materialLine );
+                    scene.add(this.line);
+                    
+                    this.data=gui.addFolder(name)
+                    this.data.add(params, 0).name("Mass")
+                    this.data.add(this, 'toTrace', [true, false]).name("Trace")
+                    var coods=[this.data.add(coord, 0), this.data.add(coord, 1), this.data.add(coord, 2)]
+                    for(var i=0; i<3; i++){
+                    coods[i].domElement.style.pointerEvents = "none"
+                    coods[i].listen()
+                    }
+                    coods[0].name("X")
+                    coods[1].name("Y")
+                    coods[2].name("Z")
+                    var vels=[this.data.add(velocity, 0), this.data.add(velocity, 1), this.data.add(velocity, 2)]
+                    for(var i=0; i<3; i++){
+                    vels[i].domElement.style.pointerEvents = "none"
+                    vels[i].listen()
+                    }
+                    vels[0].name("VelocityX")
+                    vels[1].name("VelocityY")
+                    vels[2].name("VelocityZ")
+                    
+                    
+                    
+                    this.objType=objType
+                    if(objType=="planet"){
+                        this.generatePlanet()
+                    }
+                    if(objType=="star"){
+                        this.generateStar()
+                    }
+                    
+                        
+                }
+                generatePlanet(){
+                    var geometry = new THREE.SphereGeometry( this.params[1], 32, 32 );
+                    this.obj = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial({shininess:1200, color: new THREE.Color(this.params[2])})); 
+                    scene.add( this.obj ); 
+                }
+                generateStar(){
+                    var geometry = new THREE.SphereGeometry( this.params[1], 32, 32 );
+                    this.obj = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial({emissive:new THREE.Color(this.params[2])})); 
+                    scene.add(this.obj);   
+                }
+                
+                confirm(){
+//                    if(this.objType=="star"){
+//                        this.point_light.position.set(this.coord[0], this.coord[1], this.coord[2])
+//                    }
+                }
+            }
+            
+            var settings=gui.addFolder('Settings')
+            settings.addColor(setting, 'light_general')
+            settings.add(setting, 'G')
+            settings.add(setting, 'ok')
+            
+            
+            
+            var conv=gui.addFolder("Convert")
+            
+            
+            var adding=gui.addFolder("Add")
+            
+            convInfo={
+                str:"142?-117.48952686849712;192.51016738973658;104.75318395290955;0.7347024146191888;-1.1830147742284096;-0.7290335292201934;1000;2;#faf9ff;0;star----253.9702916848218;150.95775796379948;-45.16455340061079;1.596219058159676;-0.9392273972269546;0.30037830043861913;1000;2;#faf9ff;1;star----406.8873598325396;105.63913774120046;-145.64447232193754;2.543680001468446;-0.6655800300591048;1.0055427765016305;1000;2;#faf9ff;2;star----564.2277802389584;56.6609339837559;309.52393074092305;3.5284712108317624;-0.3550580614775196;-2.172416493843647;1000;2;#faf9ff;3;star----714.7473892876096;-3.9050034031194514;-374.35376719127987;4.462346518573264;0.03127819211070847;2.647670653407299;1000;2;#faf9ff;4;star----862.8001426698457;-53.956344005762865;-828.7437655809988;5.389877644116234;0.3262086732600396;5.8623023600452955;1000;2;#faf9ff;5;star---122.38597297281915;-368.0136742559517;-187.63680447617557;-0.7746336313166279;2.1628768983533853;1.3169747933272862;1000;2;#faf9ff;6;star---62.15119930029318;-483.95057458152223;283.42483821526514;-0.3993281477764374;2.8582465998038793;-2.0007313044841433;1000;2;#faf9ff;7;star----1042.6949786244738;-67.02412461556762;-489.7489359720095;6.503771211369389;0.4208398239980675;3.4828494993739967;1000;2;#faf9ff;8;star---528.9913579598469;-233.26871099585688;-60.15374438711338;-3.272379276407423;1.3786978684877182;0.41248552431815955;1000;2;#faf9ff;9;star---459.2766364111555;-320.15237138960055;12.228829297968414;-2.848390048281466;1.882981240014595;-0.08877767657788803;1000;2;#faf9ff;10;star---395.67404319471444;-412.200945838193;63.439335513311164;-2.464735590035971;2.4163882673341;-0.4486769809401045;1000;2;#faf9ff;11;star---337.649225602864;-486.21069392404775;220.45137736484259;-2.1101038288054195;2.858308929388193;-1.548980554880146;1000;2;#faf9ff;12;star---439.00473607945173;216.0055574994423;-634.5873561442837;-2.739142248368911;-1.2847790141731215;4.484545467762028;1000;2;#faf9ff;13;star---521.9745541645398;147.99415857860572;-54.599403225840334;-3.2471841698184494;-0.8700620974128356;0.38515946268282386;1000;2;#faf9ff;14;star---516.0139314273229;58.46048561025525;-295.270035040942;-3.2141896602259408;-0.3503806454963641;2.0775910904183363;1000;2;#faf9ff;15;star---460.92716075659973;-11.802863758896741;137.89748535831464;-2.8583683947233673;0.08812057325965506;-0.9650731591046484;1000;2;#faf9ff;16;star---388.50046992028376;-94.47717104152859;129.1625649560353;-2.421677638775074;0.551763803269682;-0.900288503494409;1000;2;#faf9ff;17;star---265.5215964618713;-175.6955824086292;-12.235299603247867;-1.6408565815468295;1.0101889204335082;0.08613524193631199;1000;2;#faf9ff;18;star---203.47544786843702;-258.5367496900141;58.32403388056554;-1.285248822679304;1.495002527636055;-0.4003202527011467;1000;2;#faf9ff;19;star----1000.9811599755982;-132.30710010149463;-700.0384525164363;6.246424036274144;0.7671502771924522;4.950579738951079;1000;2;#faf9ff;20;star----851.6378194309675;-158.765625649576;-336.56176758207084;5.307533942217411;0.924503588586055;2.385106710087452;1000;2;#faf9ff;21;star----687.1632314501263;-180.09343442892666;-193.4357171430993;4.289532283114103;1.0533138944053764;1.375729002988449;1000;2;#faf9ff;22;star----520.2828920862644;-197.80951087642183;-673.7720855901011;3.2498758140588957;1.167207591204542;4.768689368109785;1000;2;#faf9ff;23;star----335.3898519174104;-192.61262313459406;434.90984042669004;2.086851749625107;1.1343518807733575;-3.073669657744409;1000;2;#faf9ff;24;star----180.04496317058832;-177.65110075759185;-244.3676205722943;1.1139270805716668;1.043467064455603;1.7236315192909286;1000;2;#faf9ff;25;star---0.016470203484447016;-158.7255756564364;62.15539004014259;-0.028221162808780544;0.9326942790641976;-0.4335739028522926;1000;2;#faf9ff;26;star---148.1457052295341;-134.70344985271294;16.283510106976074;-0.9537099501848664;0.8092020922336298;-0.11241073913484323;1000;2;#faf9ff;27;star---265.0838705060445;-109.23410383638866;-66.61111661993709;-1.6521261058257168;0.6854418396618793;0.4449176819816619;1000;2;#faf9ff;28;star---329.1856104217582;403.26691541882013;246.88789377233294;-2.049969278252311;-2.393927273134269;-1.7385006074803484;1000;3;#dfd9ff;29;star---259.593598982399;241.37712657514876;25.9131785437745;-1.6071576580574947;-1.4287910161072501;-0.1859572696502071;1000;2;#faf9ff;30;star---115.67089007731974;225.16202900111742;73.5127434912656;-0.6997914656428544;-1.3284057577282617;-0.5103627843225704;1000;2;#faf9ff;31;star---28.826667601272643;210.99574067959833;48.29292171181037;-0.19726307531945603;-1.2593820973387069;-0.3480518294724196;1000;2;#faf9ff;32;star----1111.7472140161601;-99.60159631324713;-564.1208671714767;6.888390623368514;0.5658544902512231;3.98914349831568;1000;2;#faf9ff;33;star----948.5744043088799;-23.464411381937047;-169.16214213771576;5.905703196101813;0.15098954360238218;1.2076395934753132;1000;2;#faf9ff;34;star----772.4892079756305;43.94029933983496;475.2027722729058;4.805006752888696;-0.25742533362172004;-3.3585420734811384;1000;2;#faf9ff;35;star----608.4035895867182;89.31756645137305;203.12265630243624;3.772440902341664;-0.5068506703358271;-1.4472343660793525;1000;2;#faf9ff;36;star----137.36919302017245;256.02592867255544;108.11124059963457;0.836859670039149;-1.4523242529060159;-0.7535002041787361;1000;2;#faf9ff;37;star----444.32101675941294;145.17679643061348;-95.16566435000948;2.7297941531333385;-0.8189530766200703;0.6876848243317722;1000;2;#faf9ff;38;star----279.6169289453315;198.42120502716062;-4.082440729424338;1.712146906246437;-1.1229114786506984;0.0457701749406681;1000;2;#faf9ff;39;star---9.173160834286476;337.1490711566582;-424.1218670228576;-0.0697940882427048;-1.9959903969759516;2.9985344380365957;1000;2;#faf9ff;40;star---132.77155086416923;420.2620943908374;-559.4715056456755;-0.8306602556326005;-2.4838908632617906;3.9536192430993493;1000;2;#faf9ff;41;star---238.8106589564367;464.49211881820736;460.96533204311487;-1.501932814591908;-2.7457912568227276;-3.252503882856425;1000;2;#faf9ff;42;star---335.4981819529864;486.0320011860237;31.638066563817663;-2.0954025574476156;-2.8586996014095414;-0.2276461901731031;1000;2;#faf9ff;43;star---490.2673588363155;481.43186871906255;-456.0201064526502;-3.0732472881014608;-2.850295116182523;3.2268542460207663;1000;2;#faf9ff;44;star---651.1154031050678;417.8097064802531;6.29705735508367;-4.071312033103035;-2.4653508065740306;-0.051302231963124965;1000;2;#faf9ff;45;star---755.6989898504812;434.72412197543986;230.0266135030577;-4.695893654291559;-2.556547995078465;-1.612236210935452;1000;2;#faf9ff;46;star---856.2634359826598;436.31628726083994;-571.843841090198;-5.324893085410426;-2.5934294738417756;4.046523017587422;1000;2;#faf9ff;47;star---619.3354531067959;489.06799088398265;-484.0330304705872;-3.8446887489341424;-2.893181834173009;3.4227897592539342;1000;2;#faf9ff;48;star---749.2781632160696;350.70420825182873;90.89364755372988;-4.664927940062625;-2.0751459320027665;-0.6343146926272911;1000;2;#faf9ff;49;star---790.2230598151857;276.363688765418;38.90641795473474;-4.9022950221295725;-1.6720261646466963;-0.28452606992702545;1000;2;#faf9ff;50;star---788.5593880991001;167.08970135880924;679.2146176737094;-4.9122073923640945;-0.9929620509961197;-4.803515599092231;1000;2;#faf9ff;51;star---759.6276927926621;60.171116650080506;391.48423818374846;-4.725313235184456;-0.364129753533444;-2.7663285533901028;1000;2;#faf9ff;52;star---710.0383268148108;-43.76945518675128;-284.15609968376754;-4.407790506341095;0.2503422539557173;2.0046338912492985;1000;2;#faf9ff;53;star---628.678614734453;-153.89982837020614;176.85627368871735;-3.895978033671806;0.9046334952745728;-1.2429525380909288;1000;2;#faf9ff;54;star---",
+                f:function(){
+                    str_time=this.str.split('?')
+                    STOP_TIME=parseInt(str_time[0])
+                    objects_str=str_time[1].split('---')
+                    for(i=0; i<objects_str.length-1; i++){
+                        console.log(objects_str[i])
+                        var chars=objects_str[i].split(';')
+                        objs.push(new Objects(
+                        [parseFloat(chars[0]), parseFloat(chars[1]), parseFloat(chars[2])],
+                        [parseFloat(chars[3]), parseFloat(chars[4]), parseFloat(chars[5])],
+                        [parseFloat(chars[6]), parseFloat(chars[7]),  chars[8]],
+                        chars[9],
+                        chars[10]
+                        ))
+                        console.log(chars[10])
+                    }
+                },
+                p:function(){
+                    this.str="-1?"
+                    for(i=0;i<objs.length; i++){
+                        this.str+=objs[i].coord[0]+";"+objs[i].coord[1]+";"+objs[i].coord[2]+";"+
+                            (-objs[i].velocity[0])+";"+(-objs[i].velocity[1])+";"+(-objs[i].velocity[2])+";"+
+                            objs[i].params[0]+";"+objs[i].params[1]+";"+objs[i].params[2]+";"+objs[i].name+";"+objs[i].objType+"---"
+                    }
+                }
+            }
+            convInfo.f()
+            var strs=conv.add(convInfo, 'str')
+            strs.name("G Code")
+            strs.listen()
+            conv.add(convInfo, 'f').name("Unparse")
+            conv.add(convInfo, 'p').name("Parse")
+            
+            infoToAdd ={
+                name: "planet X",
+                objtype: "planet",
+                colort: "#303030",
+                mass: 100,
+                radius: 10,
+                x: 0,
+                y: 0,
+                z: 0,
+                velx: 0,
+                vely: 0,
+                velz: 0,
+                
+            }
+            adding.add(infoToAdd, 'name').name("Name")
+            adding.add(infoToAdd, 'objtype', ['planet', 'star']).name("Type")
+            adding.addColor(infoToAdd, 'colort').name("Color")
+            adding.add(infoToAdd, 'mass').name("Mass")
+            adding.add(infoToAdd, 'radius').name("Radius")
+            adding.add(infoToAdd, 'x').name("X")
+            adding.add(infoToAdd, 'y').name("Y")
+            adding.add(infoToAdd, 'z').name("Z")
+            adding.add(infoToAdd, 'velx').name("Velocity X")
+            adding.add(infoToAdd, 'vely').name("Velocity Y")
+            adding.add(infoToAdd, 'velz').name("Velocity Z")
+            
+            
+            
+            adding.add([addObject], 0).name("add")
+            function addObject(){
+                objs.push(new Objects([infoToAdd.x, infoToAdd.y, infoToAdd.z], [infoToAdd.velx, infoToAdd.vely, infoToAdd.velz], [infoToAdd.mass, infoToAdd.radius, infoToAdd.colort], infoToAdd.name, infoToAdd.objtype))
+                
+            }
+            
+            function confirm(objects){
+                for(i=0; i<objects.length; i++){
+                    objects[i].coord_=objects[i].coord
+                    objects[i].velocity_=objects[i].velocity
+                    objects[i].accel=[0,0,0]
+                    objects[i].confirm()
+                }
+            }
+            
+    
+            
+            var renderer = new THREE.WebGLRenderer(); 
+            renderer.setSize( WIDTH, HEIGHT ); 
+            document.body.appendChild( renderer.domElement );
+            
+
+            
+            controls = new THREE.OrbitControls( camera, renderer.domElement );
+            controls.rotateSpeed = 1.0;
+            controls.zoomSpeed = 1.2;
+            controls.panSpeed = 0.8;
+            controls.noZoom = false;
+            controls.noPan = false;
+            controls.staticMoving = true;
+            controls.dynamicDampingFactor = 0.0;
+
+            
+            
+            //main loop
+            additional_fl=true
+            
+            dx=5
+            function render() {
+                
+	            requestAnimationFrame(render);
+                
+                if(setting.start || additional_fl){
+                    time+=1
+                    if(time==STOP_TIME){
+                        setting.start=false
+                        start_button.name("start")
+                    }
+                    additional_fl=false
+                    objs_copy=objs
+                for(i=0; i<objs.length; i++){
+                    for(j=0; j<objs.length; j++){
+                        if(i!=j){
+                            distant_x=objs[i].coord_[0]-objs[j].coord_[0]
+                            distant_y=objs[i].coord_[1]-objs[j].coord_[1]
+                            distant_z=objs[i].coord_[2]-objs[j].coord_[2]
+                            
+                            distant=Math.sqrt(distant_x*distant_x+distant_y*distant_y+distant_z*distant_z)
+                            
+                            if(distant<=dx){
+                                objs[i].accel=[0,0,0]
+                            }
+                            else{
+                            objs[i].accel[0]+=-distant_x/(distant*distant*distant)*g*(objs[j].params[0])
+                            objs[i].accel[1]+=-distant_y/(distant*distant*distant)*g*(objs[j].params[0])
+                            objs[i].accel[2]+=-distant_z/(distant*distant*distant)*g*(objs[j].params[0])
+                            }
+                            
+                        }
+                    }
+                    for(dim=0; dim<3; dim++){
+                        objs[i].velocity[dim]=objs[i].velocity_[dim]+objs[i].accel[dim]
+                        objs[i].coord[dim]=objs[i].coord[dim]+(objs[i].velocity[dim]+objs[i].velocity_[dim])/2
+                    }
+                }
+                }
+                for(i=0; i<objs.length; i++){
+                    objs[i].obj.position.x=objs[i].coord[0]
+                    objs[i].obj.position.y=objs[i].coord[1]
+                    objs[i].obj.position.z=objs[i].coord[2]
+                    
+                    scene.remove(objs[i].line)
+                    if(objs[i].toTrace=='true'){
+                        objs[i].points.push( new THREE.Vector3(objs[i].coord[0],objs[i].coord[1],objs[i].coord[2]))
+                        materialLine = new THREE.LineBasicMaterial({
+	                       color: new THREE.Color(setting.general_light)
+                        });
+                        geometry = new THREE.BufferGeometry().setFromPoints( objs[i].points );
+                        objs[i].line = new THREE.Line( geometry, materialLine );
+                        scene.add(objs[i].line);
+                    }
+                }
+                           
+                confirm(objs)
+                
+                
+	           renderer.render(scene, camera)
+            }
+            render()
+		</script>
+	</body>
+</html>
